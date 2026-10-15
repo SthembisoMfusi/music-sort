@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+    redis:
+      image: redis:7-alpine
+      container_name: ytm_redis
+      ports:
+        - "6379:6379"
+      restart: always
+
+    api:
+      build: ./backend
+      container_name: ytm_api
+      command: uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
+      volumes:
+        - ./backend:/app
+        - shared-downloads:/app/downloads
+      ports:
+        - "5000:5000"
+      environment:
+        - REDIS_URL=redis://redis:6379/0
+        - DATABASE_URL=sqlite:///app/downloads/metadata.db
+      restart: always
+      depends_on:
+        - redis
+
+    worker:
+      build: ./backend
+      container_name: ytm_worker
+      command: celery -A app.workers.tasks.celery_app worker --loglevel=info
+      volumes:
+        - ./backend:/app
+        - shared-downloads:/app/downloads
+      environment:
+        - REDIS_URL=redis://redis:6379/0
+        - DATABASE_URL=sqlite:///app/downloads/metadata.db
+      restart: always
+      depends_on:
+        - redis
+volumes:
+  shared-downloads:
